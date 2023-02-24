@@ -4,39 +4,43 @@
 name: Build and deploy dotnet core project to Azure Function App - zapper0108
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
-  DOTNET_VERSION: '6.0.x' # set this to the dotnet version to use
+  DOCKER_IMAGE_NAME: function-app-img
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: dev
     steps:
-      - name: 'Checkout GitHub Action'
-        uses: actions/checkout@v2
+    - name: 'Checkout repository'
+      uses: actions/checkout@v3
 
-      - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
-        uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+    - name: 'Azure login'
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_RBAC_CREDENTIALS_MANUAL }}
 
-      - name: 'Resolve Project Dependencies Using Dotnet'
-        shell: bash
-        run: |
-          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
-          dotnet build --configuration Release --output ./output
-          popd
+    - name: 'Docker login'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.REGISTRY_LOGIN_SERVER_MANUAL }}
+        username: ${{ secrets.REGISTRY_USERNAME_MANUAL }}
+        password: ${{ secrets.REGISTRY_PASSWORD_MANUAL }}
 
-      - name: 'Run Azure Functions Action'
-        uses: Azure/functions-action@v1
-        id: fa
-        with:
-          app-name: 'zapper0108'
-          slot-name: 'Production'
-          package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E69E2AFDCB80491B9D67DBEE480AE823 }}
+    - name: 'Build And Push Docker Image'
+      shell: bash
+      run: |
+        # If your function app project is not located in your repository's root
+        # Please change the path to your directory for docker build
+        docker build ./src/FunctionAppContainer/FunctionApp -t ${{ secrets.REGISTRY_LOGIN_SERVER_MANUAL }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ secrets.REGISTRY_LOGIN_SERVER_MANUAL }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+    - name: 'Deploy Function App Container'
+      uses: Azure/functions-container-action@v1
+      with:
+        app-name: ${{ secrets.FUNCTION_APP_NAME_MANUAL }}
+        image: ${{ secrets.REGISTRY_LOGIN_SERVER_MANUAL }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+
+    - name: Azure logout
+      run: az logout
