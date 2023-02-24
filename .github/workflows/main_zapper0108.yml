@@ -10,8 +10,8 @@ on:
 env:
   FUNCTION_APP_NAME: zapper0108
   CONTAINER_REGISTRY: sampleregistory0108
-  IMAGE_NAME: <image-name>
-  IMAGE_TAG: <image-tag>
+  IMAGE_NAME: hello-world
+  IMAGE_TAG: v1
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
